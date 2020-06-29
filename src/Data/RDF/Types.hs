@@ -9,15 +9,18 @@ module Data.RDF.Types (
 
   -- * RDF triples, nodes and literals
   LValue(PlainL,PlainLL,TypedL),
-  Node(UNode,BNode,BNodeGen,LNode), Subject, Predicate, Object,
+  --Node(UNode,BNode,BNodeGen,LNode), Subject, Predicate, Object,
   Triple(Triple), Triples, View(view),
 
   -- * Constructor functions
   plainL, plainLL, typedL,
-  unode, bnode, lnode, triple, unodeValidate, uriValidate, uriValidateString,
+  --unode, bnode, lnode,
+  triple,
+  --unodeValidate,
+  uriValidate, uriValidateString,
 
   -- * Node query function
-  isUNode, isLNode, isBNode,
+  --isUNode, isLNode, isBNode,
 
   -- * Miscellaneous
   resolveQName, isAbsoluteUri, mkAbsoluteUrl, escapeRDFSyntax, unescapeUnicode,
@@ -126,51 +129,93 @@ typedL val dtype = TypedL (canonicalize dtype val) dtype
 -------------------
 -- Node and constructor functions
 
+newtype UriNode = UriNode T.Text
+  deriving (Show, Eq, Ord, Generic)
+data Subject = UriSubject UriNode
+             | BlankSubject
+  deriving (Show, Eq, Ord, Generic)
+newtype Predicate = Predicate UriNode
+  deriving (Show, Eq, Ord, Generic)
+data Object = ObjectLiteral T.Text
+            | OjbectUri UriNode
+            | BlankObject
+  deriving (Show, Eq, Ord, Generic)
+
+--instance Binary URIAuth
+--instance Binary URI
+
+instance Binary UriNode
+instance NFData UriNode
+instance Hashable UriNode
+
+instance Binary Subject
+instance NFData Subject
+instance Hashable Subject
+
+instance Binary Predicate
+instance NFData Predicate
+instance Hashable Predicate
+
+instance Binary Object
+instance NFData Object
+instance Hashable Object
+
+data Triple = Triple Subject Predicate Object
+  deriving (Generic, Show, Eq)
+
+instance Binary Triple
+instance NFData Triple
+
+data Node = SubjectNode Subject
+          | PredicateNode Predicate
+          | ObjectNode Object
+  deriving (Show, Eq, Generic)
+
 -- |An RDF node, which may be either a URIRef node ('UNode'), a blank
 -- node ('BNode'), or a literal node ('LNode').
-data Node =
+-- data Node =
 
-  -- |An RDF URI reference. URIs conform to the RFC3986 standard. See
-  -- <http://www.w3.org/TR/rdf-concepts/#section-Graph-URIref> for more
-  -- information.
-  UNode !Text
+--   -- |An RDF URI reference. URIs conform to the RFC3986 standard. See
+--   -- <http://www.w3.org/TR/rdf-concepts/#section-Graph-URIref> for more
+--   -- information.
+--   UNode !Text
 
-  -- |An RDF blank node. See
-  -- <http://www.w3.org/TR/rdf-concepts/#section-blank-nodes> for more
-  -- information.
-  | BNode !Text
+--   -- |An RDF blank node. See
+--   -- <http://www.w3.org/TR/rdf-concepts/#section-blank-nodes> for more
+--   -- information.
+--   | BNode !Text
 
-  -- |An RDF blank node with an auto-generated identifier, as used in
-  -- Turtle.
-  | BNodeGen !Int
+--   -- |An RDF blank node with an auto-generated identifier, as used in
+--   -- Turtle.
+--   | BNodeGen !Int
 
-  -- |An RDF literal. See
-  -- <http://www.w3.org/TR/rdf-concepts/#section-Graph-Literal> for more
-  -- information.
-  | LNode !LValue
-  deriving (Generic,Show)
+--   -- |An RDF literal. See
+--   -- <http://www.w3.org/TR/rdf-concepts/#section-Graph-Literal> for more
+--   -- information.
+--   | LNode !LValue
+--   deriving (Generic,Show)
 
-instance Binary Node
+-- instance Binary Node
 
-instance NFData Node where
-  rnf (UNode t) = rnf t
-  rnf (BNode b) = rnf b
-  rnf (BNodeGen bgen) = rnf bgen
-  rnf (LNode lvalue) = rnf lvalue
+-- instance NFData Node where
+--   rnf (UNode t) = rnf t
+--   rnf (BNode b) = rnf b
+--   rnf (BNodeGen bgen) = rnf bgen
+--   rnf (LNode lvalue) = rnf lvalue
 
--- |An alias for 'Node', defined for convenience and readability purposes.
-type Subject = Node
+-- -- |An alias for 'Node', defined for convenience and readability purposes.
+-- type Subject = Node
 
--- |An alias for 'Node', defined for convenience and readability purposes.
-type Predicate = Node
+-- -- |An alias for 'Node', defined for convenience and readability purposes.
+-- type Predicate = Node
 
--- |An alias for 'Node', defined for convenience and readability purposes.
-type Object = Node
+-- -- |An alias for 'Node', defined for convenience and readability purposes.
+-- type Object = Node
 
--- |Return a URIRef node for the given URI.
-{-# INLINE unode #-}
-unode :: Text -> Node
-unode = UNode
+-- -- |Return a URIRef node for the given URI.
+-- {-# INLINE unode #-}
+-- unode :: Text -> Node
+-- unode = UNode
 
 -- For background on 'unodeValidate', see:
 -- http://stackoverflow.com/questions/33250184/unescaping-unicode-literals-found-in-haskell-strings
@@ -185,8 +230,8 @@ unode = UNode
 --  1. unescape unicode RDF literals
 --  2. checks validity of this unescaped URI using 'isURI' from 'Network.URI'
 --  3. if the unescaped URI is valid then 'Node' constructed with 'UNode'
-unodeValidate :: Text -> Maybe Node
-unodeValidate t = UNode <$> uriValidate t
+-- unodeValidate :: Text -> Maybe Node
+-- unodeValidate t = UNode <$> uriValidate t
 
 -- |Validate a Text URI and return it in a @Just Text@ if it is
 --  valid, otherwise @Nothing@ is returned. See 'unodeValidate'.
@@ -248,14 +293,14 @@ unescapeUnicode t = T.pack <$> parse (many unicodeEsc) "" t
 escapeRDFSyntax = unescapeUnicode
 
 -- |Return a blank node using the given string identifier.
-{-# INLINE bnode #-}
-bnode :: Text ->  Node
-bnode = BNode
+--{-# INLINE bnode #-}
+-- bnode :: Text ->  Node
+-- bnode = BNode
 
 -- |Return a literal node using the given LValue.
-{-# INLINE lnode #-}
-lnode :: LValue ->  Node
-lnode = LNode
+--{-# INLINE lnode #-}
+-- lnode :: LValue ->  Node
+-- lnode = LNode
 
 -------------------
 -- Triple and constructor functions
@@ -265,13 +310,13 @@ lnode = LNode
 --
 -- See <http://www.w3.org/TR/rdf-concepts/#section-triples> for
 -- more information.
-data Triple = Triple !Node !Node !Node
-  deriving (Generic,Show)
+-- data Triple = Triple !Node !Node !Node
+--   deriving (Generic,Show)
 
-instance Binary Triple
+--instance Binary Triple
 
-instance NFData Triple where
-  rnf (Triple s p o) = rnf s `seq` rnf p `seq` rnf o
+-- instance NFData Triple where
+--  rnf (Triple s p o) = rnf s `seq` rnf p `seq` rnf o
 
 -- |A list of triples. This is defined for convenience and readability.
 type Triples = [Triple]
@@ -280,30 +325,30 @@ type Triples = [Triple]
 -- are of the correct type and creates the new 'Triple' if so or calls 'error'.
 -- /subj/ must be a 'UNode' or 'BNode', and /pred/ must be a 'UNode'.
 triple :: Subject -> Predicate -> Object -> Triple
-triple s p o
-  | isLNode s = error $ "subject must be UNode or BNode: "     <> show s
-  | isLNode p = error $ "predicate must be UNode, not LNode: " <> show p
-  | isBNode p = error $ "predicate must be UNode, not BNode: " <> show p
-  | otherwise =  Triple s p o
+triple s p o = Triple s p o
+  -- | isLNode s = error $ "subject must be UNode or BNode: "     <> show s
+  -- | isLNode p = error $ "predicate must be UNode, not LNode: " <> show p
+  -- | isBNode p = error $ "predicate must be UNode, not BNode: " <> show p
+  -- | otherwise =  Triple s p o
 
 -- |Answer if given node is a URI Ref node.
-{-# INLINE isUNode #-}
-isUNode :: Node -> Bool
-isUNode (UNode _) = True
-isUNode _         = False
+--{-# INLINE isUNode #-}
+-- isUNode :: Node -> Bool
+-- isUNode (UNode _) = True
+-- isUNode _         = False
 
--- |Answer if given node is a blank node.
-{-# INLINE isBNode #-}
-isBNode :: Node -> Bool
-isBNode (BNode _)    = True
-isBNode (BNodeGen _) = True
-isBNode _            = False
+-- -- |Answer if given node is a blank node.
+-- {-# INLINE isBNode #-}
+-- isBNode :: Node -> Bool
+-- isBNode (BNode _)    = True
+-- isBNode (BNodeGen _) = True
+-- isBNode _            = False
 
--- |Answer if given node is a literal node.
-{-# INLINE isLNode #-}
-isLNode :: Node -> Bool
-isLNode (LNode _) = True
-isLNode _         = False
+-- -- |Answer if given node is a literal node.
+-- {-# INLINE isLNode #-}
+-- isLNode :: Node -> Bool
+-- isLNode (LNode _) = True
+-- isLNode _         = False
 
 {-# INLINE isAbsoluteUri #-}
 -- | returns @True@ if URI is absolute.
@@ -396,7 +441,7 @@ class (Generic rdfImpl, NFData rdfImpl) => Rdf rdfImpl where
   -- For example, @ query rdf (Just n1) Nothing (Just n2) @ would return all
   -- and only the triples that have @n1@ as subject and @n2@ as object,
   -- regardless of the predicate of the triple.
-  query :: RDF rdfImpl -> Maybe Node -> Maybe Node -> Maybe Node -> Triples
+  query :: RDF rdfImpl -> Maybe Subject -> Maybe Predicate -> Maybe Object -> Triples
 
   -- |pretty prints the RDF graph
   showGraph :: RDF rdfImpl -> String
@@ -495,12 +540,12 @@ newtype ParseFailure = ParseFailure String
 
 -- |A node is equal to another node if they are both the same type
 -- of node and if the field values are equal.
-instance Eq Node where
-  (UNode bs1)    ==  (UNode bs2)     =  bs1 == bs2
-  (BNode bs1)    ==  (BNode bs2)     =  bs1 == bs2
-  (BNodeGen i1)  ==  (BNodeGen i2)   =  i1 == i2
-  (LNode l1)     ==  (LNode l2)      =  l1 == l2
-  _              ==  _               =  False
+-- instance Eq Node where
+--   (UNode bs1)    ==  (UNode bs2)     =  bs1 == bs2
+--   (BNode bs1)    ==  (BNode bs2)     =  bs1 == bs2
+--   (BNodeGen i1)  ==  (BNodeGen i2)   =  i1 == i2
+--   (LNode l1)     ==  (LNode l2)      =  l1 == l2
+--   _              ==  _               =  False
 
 -- |Node ordering is defined first by type, with Unode < BNode < BNodeGen
 -- < LNode PlainL < LNode PlainLL < LNode TypedL, and secondly by
@@ -510,24 +555,24 @@ instance Eq Node where
 -- '(LNode (TypedL _ _))' is GT any other type of node, and the ordering
 -- of '(BNodeGen 44)' and '(BNodeGen 3)' is that of the values, or
 -- 'compare 44 3', GT.
-instance Ord Node where
-  compare (UNode bs1)       (UNode bs2)   = compare bs1 bs2
-  compare (UNode _)         _             = LT
-  compare _                 (UNode _)     = GT
-  compare (BNode bs1)       (BNode bs2)   = compare bs1 bs2
-  compare (BNode _)         _             = LT
-  compare _                 (BNode _)     = GT
-  compare (BNodeGen i1)     (BNodeGen i2) = compare i1 i2
-  compare (BNodeGen _)      _             = LT
-  compare _                 (BNodeGen _)  = GT
-  compare (LNode lv1)       (LNode lv2)   = compare lv1 lv2
+-- instance Ord Node where
+--   compare (UNode bs1)       (UNode bs2)   = compare bs1 bs2
+--   compare (UNode _)         _             = LT
+--   compare _                 (UNode _)     = GT
+--   compare (BNode bs1)       (BNode bs2)   = compare bs1 bs2
+--   compare (BNode _)         _             = LT
+--   compare _                 (BNode _)     = GT
+--   compare (BNodeGen i1)     (BNodeGen i2) = compare i1 i2
+--   compare (BNodeGen _)      _             = LT
+--   compare _                 (BNodeGen _)  = GT
+--   compare (LNode lv1)       (LNode lv2)   = compare lv1 lv2
 
 instance Hashable Node
 
 -- |Two triples are equal iff their respective subjects, predicates, and objects
 -- are equal.
-instance Eq Triple where
-  (Triple s1 p1 o1) == (Triple s2 p2 o2) = s1 == s2 && p1 == p2 && o1 == o2
+-- instance Eq Triple where
+--   (Triple s1 p1 o1) == (Triple s2 p2 o2) = s1 == s2 && p1 == p2 && o1 == o2
 
 -- |The ordering of triples is based on that of the subject, predicate, and object
 -- of the triple, in that order.
@@ -651,8 +696,8 @@ _decimalStr s =     -- haskell double parser doesn't handle '1.'..,
   where f s' = T.pack $ show (read $ T.unpack s' :: Double)
 
 -- | Removes "file://" schema from URIs in 'UNode' nodes
-fileSchemeToFilePath :: (IsString s) => Node -> Maybe s
-fileSchemeToFilePath (UNode fileScheme)
+fileSchemeToFilePath :: (IsString s) => UriNode -> Maybe s
+fileSchemeToFilePath (UriNode fileScheme)
   | "file://" `T.isPrefixOf` fileScheme = textToFilePath fileScheme
   | otherwise = Nothing
   where
