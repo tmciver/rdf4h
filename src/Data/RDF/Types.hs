@@ -10,6 +10,11 @@ module Data.RDF.Types (
   -- * RDF triples, nodes and literals
   LValue(PlainL,PlainLL,TypedL),
   --Node(UNode,BNode,BNodeGen,LNode), Subject, Predicate, Object,
+
+  Subject(..), Predicate(..), Object(..),
+  UriNode(..),
+  Node(..),
+
   Triple(Triple), Triples, View(view),
 
   -- * Constructor functions
@@ -129,7 +134,8 @@ typedL val dtype = TypedL (canonicalize dtype val) dtype
 -------------------
 -- Node and constructor functions
 
-newtype UriNode = UriNode T.Text
+data UriNode = UriNode T.Text
+             | Text :* Text   -- A prefix alias plus path
   deriving (Show, Eq, Ord, Generic)
 data Subject = UriSubject UriNode
              | BlankSubject
@@ -137,7 +143,7 @@ data Subject = UriSubject UriNode
 newtype Predicate = Predicate UriNode
   deriving (Show, Eq, Ord, Generic)
 data Object = ObjectLiteral T.Text
-            | OjbectUri UriNode
+            | ObjectUri UriNode
             | BlankObject
   deriving (Show, Eq, Ord, Generic)
 

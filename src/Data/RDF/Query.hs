@@ -10,8 +10,8 @@ module Data.RDF.Query
     predicateOf,
     objectOf,
     isEmpty,
-    rdfContainsNode,
-    tripleContainsNode,
+--    rdfContainsNode,
+--    tripleContainsNode,
     subjectsWithPredicate,
     objectsOfPredicate,
     uordered,
@@ -59,28 +59,28 @@ import Prelude hiding (pred)
 
 -- | Answer the subject node of the triple.
 {-# INLINE subjectOf #-}
-subjectOf :: Triple -> Node
+subjectOf :: Triple -> Subject
 subjectOf (Triple s _ _) = s
 
 -- | Answer the predicate node of the triple.
 {-# INLINE predicateOf #-}
-predicateOf :: Triple -> Node
+predicateOf :: Triple -> Predicate
 predicateOf (Triple _ p _) = p
 
 -- | Answer the object node of the triple.
 {-# INLINE objectOf #-}
-objectOf :: Triple -> Node
+objectOf :: Triple -> Object
 objectOf (Triple _ _ o) = o
 
 -- | Answer if rdf contains node.
-rdfContainsNode :: (Rdf a) => RDF a -> Node -> Bool
-rdfContainsNode rdf node = any (tripleContainsNode node) (triplesOf rdf)
+-- rdfContainsNode :: (Rdf a) => RDF a -> Node -> Bool
+-- rdfContainsNode rdf node = any (tripleContainsNode node) (triplesOf rdf)
 
 -- | Answer if triple contains node.
 --  Note that it doesn't perform namespace expansion!
-tripleContainsNode :: Node -> Triple -> Bool
-{-# INLINE tripleContainsNode #-}
-tripleContainsNode node (Triple s p o) = s == node || p == node || o == node
+-- tripleContainsNode :: Node -> Triple -> Bool
+-- {-# INLINE tripleContainsNode #-}
+-- tripleContainsNode node (Triple s p o) = s == node || p == node || o == node
 
 -- | Determine whether two triples have equal subjects.
 --  Note that it doesn't perform namespace expansion!
@@ -129,19 +129,25 @@ uordered = sort . nub
 isIsomorphic :: (Rdf a, Rdf b) => RDF a -> RDF b -> Bool
 isIsomorphic g1 g2 = and $ zipWith compareTripleUnlessBlank (normalize g1) (normalize g2)
   where
-    compareNodeUnlessBlank :: Node -> Node -> Bool
-    compareNodeUnlessBlank (BNode _) (BNode _) = True
-    compareNodeUnlessBlank (UNode n1) (UNode n2) = n1 == n2
-    compareNodeUnlessBlank (BNodeGen i1) (BNodeGen i2) = i1 == i2
-    compareNodeUnlessBlank (LNode l1) (LNode l2) = l1 == l2
-    compareNodeUnlessBlank (BNodeGen _) (BNode _) = True
-    compareNodeUnlessBlank (BNode _) (BNodeGen _) = True
-    compareNodeUnlessBlank _ _ = False
+    compareSubjectUnlessBlank :: Subject -> Subject -> Bool
+    compareSubjectUnlessBlank BlankSubject BlankSubject = True
+    compareSubjectUnlessBlank s1 s2 = s1 == s2
+    compareObjectUnlessBlank :: Object -> Object -> Bool
+    compareObjectUnlessBlank BlankObject BlankObject = True
+    compareObjectUnlessBlank o1 o2 = o1 == o2
+    -- compareNodeUnlessBlank :: Node -> Node -> Bool
+    -- compareNodeUnlessBlank (BNode _) (BNode _) = True
+    -- compareNodeUnlessBlank (UNode n1) (UNode n2) = n1 == n2
+    -- compareNodeUnlessBlank (BNodeGen i1) (BNodeGen i2) = i1 == i2
+    -- compareNodeUnlessBlank (LNode l1) (LNode l2) = l1 == l2
+    -- compareNodeUnlessBlank (BNodeGen _) (BNode _) = True
+    -- compareNodeUnlessBlank (BNode _) (BNodeGen _) = True
+    -- compareNodeUnlessBlank _ _ = False
     compareTripleUnlessBlank :: Triple -> Triple -> Bool
     compareTripleUnlessBlank (Triple s1 p1 o1) (Triple s2 p2 o2) =
-      compareNodeUnlessBlank s1 s2
-        && compareNodeUnlessBlank p1 p2
-        && compareNodeUnlessBlank o1 o2
+      compareSubjectUnlessBlank s1 s2
+        && p1 == p2
+        && compareObjectUnlessBlank o1 o2
     normalize :: (Rdf a) => RDF a -> Triples
     normalize = sort . nub . expandTriples
 
@@ -166,6 +172,21 @@ isGraphIsomorphic g1 g2 = Automorphism.isIsomorphic g1' g2'
         triplesGrouped = HashMap.toList triplesHashMap
         (dataGraph, _, _) = (graphFromEdges . fmap (\((s, p), os) -> (s, p, os))) triplesGrouped
 
+class ExpandableURI e where
+  expandUri :: PrefixMappings -> e -> e
+
+instance ExpandableURI Subject where
+  expandUri pms (UriSubject (pf :* path)) = UriSubject . UriNode $ expandURI pms (pf <> ":" <> path)
+  expandUri _ s = s
+
+instance ExpandableURI Predicate where
+  expandUri pms (Predicate (pf :* path)) = Predicate . UriNode $ expandURI pms (pf <> ":" <> path)
+  expandUri _ p = p
+
+instance ExpandableURI Object where
+  expandUri pms (ObjectUri (pf :* path)) = ObjectUri . UriNode $ expandURI pms (pf <> ":" <> path)
+  expandUri _ o = o
+
 -- | Expand the triples in a graph with the prefix map and base URL
 -- for that graph. Unsafe because it assumes IRI resolution will
 -- succeed, may throw an 'IRIResolutionException` exception.
@@ -176,13 +197,19 @@ expandTriples rdf = normalize <$> triplesOf rdf
 
 -- | Expand the triple with the prefix map.
 expandTriple :: PrefixMappings -> Triple -> Triple
-expandTriple pms (Triple s p o) = triple (expandNode pms s) (expandNode pms p) (expandNode pms o)
+expandTriple pms (Triple s p o) = triple (expandUri pms s) (expandUri pms p) (expandUri pms o)
+
+-- nodeToURINode :: Node -> Maybe UriNode
+-- nodeToURINode (SubjectNode (UriSubject u)) = Just u
+-- nodeToURINode (Predicate u) = Just u
+-- nodeToURINode (ObjectUri u) = Just u
+-- nodeToURINode _ = Nothing
 
 -- | Expand the node with the prefix map.
 --  Only UNodes are expanded, other kinds of nodes are returned as-is.
-expandNode :: PrefixMappings -> Node -> Node
-expandNode pms (UNode u) = unode $ expandURI pms u
-expandNode _ n = n
+-- expandNode :: PrefixMappings -> Node -> Node
+-- expandNode pms (UNode u) = unode $ expandURI pms u
+-- expandNode _ n = n
 
 -- | Expand the URI with the prefix map.
 --  Also expands "a" to "http://www.w3.org/1999/02/22-rdf-syntax-ns#type".
