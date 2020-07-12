@@ -197,7 +197,7 @@ expandTriples rdf = normalize <$> triplesOf rdf
 
 -- | Expand the triple with the prefix map.
 expandTriple :: PrefixMappings -> Triple -> Triple
-expandTriple pms (Triple s p o) = triple (expandUri pms s) (expandUri pms p) (expandUri pms o)
+expandTriple pms (Triple s p o) = triple (expandSubjectURI pms s) (expandPredicateURI pms p) (expandObjectURI pms o)
 
 -- nodeToURINode :: Node -> Maybe UriNode
 -- nodeToURINode (SubjectNode (UriSubject u)) = Just u
@@ -220,6 +220,17 @@ expandURI pms iri = fromMaybe iri $ foldl' f Nothing (NS.toPMList pms)
     f :: Maybe Text -> (Text, Text) -> Maybe Text
     f x (p, u) = x <|> (T.append u <$> T.stripPrefix (T.append p ":") iri)
 
+expandSubjectURI :: PrefixMappings -> Subject -> Subject
+expandSubjectURI pms (UriSubject (UriNode uri)) = UriSubject $ UriNode (expandURI pms uri)
+expandSubjectURI _ s = s
+
+expandPredicateURI :: PrefixMappings -> Predicate -> Predicate
+expandPredicateURI pms (Predicate (UriNode uri)) = Predicate $ UriNode (expandURI pms uri)
+
+expandObjectURI :: PrefixMappings -> Object -> Object
+expandObjectURI pms (ObjectUri (UriNode uri)) = ObjectUri $ UriNode (expandURI pms uri)
+expandObjectURI _ o = o
+
 -- | Prefixes relative URIs in the triple with BaseUrl. Unsafe because
 -- it assumes IRI resolution will succeed, may throw an
 -- 'IRIResolutionException` exception.
@@ -227,12 +238,12 @@ absolutizeTriple :: Maybe BaseUrl -> Triple -> Triple
 absolutizeTriple base (Triple s p o) = triple (absolutizeNodeUnsafe base s) (absolutizeNodeUnsafe base p) (absolutizeNodeUnsafe base o)
 
 -- | Prepends BaseUrl to UNodes with relative URIs.
-absolutizeNode :: Maybe BaseUrl -> Node -> Either String Node
-absolutizeNode (Just (BaseUrl b)) (UNode u) =
-  case resolveIRI b u of
-    Left iriErr -> Left iriErr
-    Right t -> Right (unode t)
-absolutizeNode _ n = Right n
+-- absolutizeNode :: Maybe BaseUrl -> Node -> Either String Node
+-- absolutizeNode (Just (BaseUrl b)) (UNode u) =
+--   case resolveIRI b u of
+--     Left iriErr -> Left iriErr
+--     Right t -> Right (unode t)
+-- absolutizeNode _ n = Right n
 
 data QueryException
   = IRIResolutionException String
@@ -243,9 +254,9 @@ instance Exception QueryException
 -- | Prepends BaseUrl to UNodes with relative URIs. Unsafe because it
 -- assumes IRI resolution will succeed, may throw an
 -- 'IRIResolutionException` exception.
-absolutizeNodeUnsafe :: Maybe BaseUrl -> Node -> Node
-absolutizeNodeUnsafe (Just (BaseUrl b)) (UNode u) =
+absolutizeNodeUnsafe :: Maybe BaseUrl -> UriNode -> UriNode
+absolutizeNodeUnsafe (Just (BaseUrl b)) (UriNode u) =
   case resolveIRI b u of
     Left iriErr -> throw (IRIResolutionException iriErr)
-    Right t -> unode t
+    Right t -> UriNode t
 absolutizeNodeUnsafe _ n = n
